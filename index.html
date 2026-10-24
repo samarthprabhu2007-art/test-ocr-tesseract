@@ -47,6 +47,14 @@
         <p id="progressText" class="progress-text"></p>
       </section>
 
+      <dialog id="detectedDialog" class="detected-dialog" aria-labelledby="dialogHeading" aria-describedby="dialogDescription">
+        <p class="eyebrow">SCAN COMPLETE</p>
+        <h2 id="dialogHeading">RVCE ID detected</h2>
+        <p id="dialogDescription">The camera has been stopped.</p>
+        <output id="dialogStudentId" class="dialog-student-id"></output>
+        <button id="dialogClose" class="primary-button dialog-close" type="button">Done</button>
+      </dialog>
+
       <section class="result-card" aria-labelledby="result-heading">
         <div class="section-heading">
           <div>

@@ -32,6 +32,12 @@ h2 { margin: 0; font-size: clamp(18px, 4vw, 22px); }
 .camera-controls .primary-button { border-color: #2563eb; background: #2563eb; }
 .camera-controls button:disabled { cursor: not-allowed; opacity: .48; }
 .camera-controls button:focus-visible, .upload-button:focus-visible { outline: 3px solid #8bb5ff; outline-offset: 2px; }
+.detected-dialog { width: min(420px, calc(100% - 32px)); border: 1px solid #31513e; border-radius: 18px; padding: 24px; color: #f4f7ff; background: #0d1830; box-shadow: 0 24px 80px #0009; }
+.detected-dialog::backdrop { background: #020611c9; backdrop-filter: blur(4px); }
+.detected-dialog h2 { margin: 0; }
+.detected-dialog > p:not(.eyebrow) { margin: 10px 0 0; color: #a9bad5; }
+.dialog-student-id { display: block; margin-top: 18px; padding: 16px; border: 1px solid #31513e; border-radius: 11px; color: #a5f3c1; background: #081b16; font: 750 clamp(22px, 7vw, 30px) ui-monospace, SFMono-Regular, Consolas, monospace; text-align: center; overflow-wrap: anywhere; }
+.dialog-close { width: 100%; min-height: 48px; margin-top: 18px; border: 0; border-radius: 10px; color: #fff; background: #2563eb; font: inherit; font-weight: 700; cursor: pointer; }
 .upload-button { margin-top: 10px; background: #172946; }
 .upload-button:hover { background: #21395e; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

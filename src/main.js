@@ -7,6 +7,9 @@ const elements = {
   cameraPreview: document.querySelector("#cameraPreview"),
   cameraButton: document.querySelector("#cameraButton"),
   captureButton: document.querySelector("#captureButton"),
+  detectedDialog: document.querySelector("#detectedDialog"),
+  dialogStudentId: document.querySelector("#dialogStudentId"),
+  dialogClose: document.querySelector("#dialogClose"),
   previewCard: document.querySelector("#previewCard"),
   preview: document.querySelector("#imagePreview"),
   imageCaption: document.querySelector("#imageCaption"),
@@ -226,7 +229,10 @@ async function scanVideoFrames(scanId) {
         elements.latency.textContent = `${((performance.now() - startedAt) / 1000).toFixed(2)} s to detect`;
         elements.fieldNote.textContent = "RVCE-format ID found in live video OCR. Check it against the card.";
         elements.progress.textContent = `ID found after ${frameCount} frame${frameCount === 1 ? "" : "s"}.`;
-        setStatus("RVCE ID detected. Camera remains on; select Scan again to search again.", "success");
+        setStatus("RVCE ID detected. Camera stopped.", "success");
+        stopCamera();
+        elements.dialogStudentId.textContent = studentId;
+        if (!elements.detectedDialog.open) elements.detectedDialog.showModal();
         return;
       }
 
@@ -313,6 +319,7 @@ elements.cameraButton.addEventListener("click", () => {
   else void startCamera();
 });
 elements.captureButton.addEventListener("click", scanAgain);
+elements.dialogClose.addEventListener("click", () => elements.detectedDialog.close());
 
 window.addEventListener("pagehide", () => {
   stopCamera();
