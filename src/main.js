@@ -110,22 +110,15 @@ function extractStudentId(text) {
   const asDigit = (character) => /\d/.test(character) ? character : digitLookalikes[character];
   const asLetter = (character) => /[A-Z]/.test(character) ? character : letterLookalikes[character];
 
-  // Card ID shape: RVCE + year (2 digits) + fixed B + branch (2 letters)
-  // + serial (3 digits). Only accept a complete ID, correcting common OCR
-  // digit/letter lookalikes in their known positions.
-  let searchFrom = 0;
-  while (searchFrom < compact.length) {
-    const start = compact.indexOf("RVCE", searchFrom);
-    if (start < 0) break;
+  // The 12-character ID has fixed display values in slots 1-4 and 7.
+  // OCR may misread those slots, so preserve only year (5-6), branch (8-9),
+  // and serial (10-12), then display the known fixed RVCE and B values.
+  for (let start = 0; start <= compact.length - 12; start += 1) {
     const candidate = compact.slice(start, start + 12);
-    searchFrom = start + 4;
-    if (candidate.length !== 12) continue;
-
     const year = `${asDigit(candidate[4]) || ""}${asDigit(candidate[5]) || ""}`;
-    const commonB = candidate[6] === "B" || candidate[6] === "8" ? "B" : "";
     const branch = `${asLetter(candidate[7]) || ""}${asLetter(candidate[8]) || ""}`;
     const serial = `${asDigit(candidate[9]) || ""}${asDigit(candidate[10]) || ""}${asDigit(candidate[11]) || ""}`;
-    if (/^\d{2}$/.test(year) && commonB && /^[A-Z]{2}$/.test(branch) && /^\d{3}$/.test(serial)) {
+    if (/^\d{2}$/.test(year) && /^[A-Z]{2}$/.test(branch) && /^\d{3}$/.test(serial)) {
       return `RVCE${year}B${branch}${serial}`;
     }
   }
