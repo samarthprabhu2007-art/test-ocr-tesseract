@@ -5,6 +5,7 @@ const elements = {
   imageInput: document.querySelector("#imageInput"),
   cameraFrame: document.querySelector("#cameraFrame"),
   cameraPreview: document.querySelector("#cameraPreview"),
+  cameraGuideRegion: document.querySelector(".camera-guide span"),
   cameraButton: document.querySelector("#cameraButton"),
   captureButton: document.querySelector("#captureButton"),
   detectedDialog: document.querySelector("#detectedDialog"),
@@ -175,11 +176,35 @@ async function scanVideoFrames(scanId) {
         continue;
       }
 
-      // Process the whole frame, capped at 1280px wide to reduce per-frame OCR work.
-      const scale = Math.min(1, 1280 / video.videoWidth);
-      canvas.width = Math.round(video.videoWidth * scale);
-      canvas.height = Math.round(video.videoHeight * scale);
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Crop the source frame to exactly the visible green guide. Account for
+      // object-fit: contain letterboxing before mapping screen coordinates to pixels.
+      const videoBounds = video.getBoundingClientRect();
+      const guideBounds = elements.cameraGuideRegion.getBoundingClientRect();
+      const containScale = Math.min(
+        videoBounds.width / video.videoWidth,
+        videoBounds.height / video.videoHeight,
+      );
+      const displayedWidth = video.videoWidth * containScale;
+      const displayedHeight = video.videoHeight * containScale;
+      const displayedLeft = videoBounds.left + (videoBounds.width - displayedWidth) / 2;
+      const displayedTop = videoBounds.top + (videoBounds.height - displayedHeight) / 2;
+      const cropLeft = Math.max(guideBounds.left, displayedLeft);
+      const cropTop = Math.max(guideBounds.top, displayedTop);
+      const cropRight = Math.min(guideBounds.right, displayedLeft + displayedWidth);
+      const cropBottom = Math.min(guideBounds.bottom, displayedTop + displayedHeight);
+      const sourceX = (cropLeft - displayedLeft) / containScale;
+      const sourceY = (cropTop - displayedTop) / containScale;
+      const sourceWidth = (cropRight - cropLeft) / containScale;
+      const sourceHeight = (cropBottom - cropTop) / containScale;
+      if (sourceWidth <= 0 || sourceHeight <= 0) {
+        await wait(50);
+        continue;
+      }
+
+      const scale = Math.min(1, 1280 / sourceWidth);
+      canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+      canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+      context.drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
 
       const result = await activeWorker.recognize(canvas);
       if (scanId !== liveScanId || !cameraStream) return;
@@ -206,7 +231,7 @@ async function scanVideoFrames(scanId) {
       elements.fieldNote.textContent = "Keep the RVCE ID in view, in focus, and well lit.";
       elements.progress.textContent = `Checked ${frameCount} frame${frameCount === 1 ? "" : "s"}. Looking for an RVCE-format ID…`;
       setStatus("Looking for an RVCE ID in the live camera…", "scanning");
-      await wait(250);
+      await wait(50);
     }
   } catch (error) {
     if (scanId === liveScanId) {
