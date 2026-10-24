@@ -72,30 +72,13 @@ function loadOcrWorker() {
 }
 
 function extractStudentId(text) {
-  const cleanedText = text.toUpperCase().replace(/[|]/g, "I");
+  const cleanedText = text.toUpperCase();
   const compact = cleanedText.replace(/[^A-Z0-9]/g, "");
 
-  // RVCE card IDs (for example RVCE25BCS104) and RVCE USNs are both used
-  // on member cards. OCR may insert spaces or confuse 0/O and 1/I.
+  // Only accept the printed RVCE card ID format, e.g. RVCE25BCS104.
+  // Compacting allows OCR to insert spaces or punctuation within the value.
   const rvceId = compact.match(/RVCE\d{2}[A-Z]{2,4}\d{2,4}/);
   if (rvceId) return rvceId[0];
-
-  const repaired = compact
-    .replace(/^I(?=R[ZV])/, "1")
-    .replace(/(?<=1R[ZV]\d{2}[A-Z]{2,3})[OQ]/g, "0");
-  const usn = repaired.match(/1R[ZV]\d{2}[A-Z]{2,3}\d{2,3}/);
-  if (usn) return usn[0];
-
-  // Restrict a second pass to text near an ID label to avoid returning a
-  // course code or another number elsewhere on the card.
-  const labeled = cleanedText.match(/(?:STUDENT\s*ID|USN|ID\s*NO)\s*[:\-]?\s*([A-Z0-9\s|]{8,24})/);
-  if (labeled) {
-    const candidate = labeled[1].replace(/[^A-Z0-9]/g, "");
-    const labeledRvceId = candidate.match(/RVCE\d{2}[A-Z]{2,4}\d{2,4}/);
-    if (labeledRvceId) return labeledRvceId[0];
-    const labeledUsn = candidate.replace(/^I(?=R[ZV])/, "1").match(/1R[ZV]\d{2}[A-Z]{2,3}\d{2,3}/);
-    if (labeledUsn) return labeledUsn[0];
-  }
   return "Not found";
 }
 
