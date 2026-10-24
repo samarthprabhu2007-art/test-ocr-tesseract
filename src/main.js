@@ -3,6 +3,10 @@ import "../style.css";
 
 const elements = {
   imageInput: document.querySelector("#imageInput"),
+  cameraFrame: document.querySelector("#cameraFrame"),
+  cameraPreview: document.querySelector("#cameraPreview"),
+  cameraButton: document.querySelector("#cameraButton"),
+  captureButton: document.querySelector("#captureButton"),
   previewCard: document.querySelector("#previewCard"),
   preview: document.querySelector("#imagePreview"),
   imageCaption: document.querySelector("#imageCaption"),
@@ -20,6 +24,7 @@ let workerPromise;
 let worker;
 let currentImageUrl = "";
 let requestId = 0;
+let cameraStream = null;
 
 function setStatus(message, kind = "scanning") {
   elements.status.textContent = message;
@@ -147,12 +152,91 @@ async function processImage(file) {
   }
 }
 
+function stopCamera() {
+  if (cameraStream) {
+    for (const track of cameraStream.getTracks()) track.stop();
+    cameraStream = null;
+  }
+  elements.cameraPreview.srcObject = null;
+  elements.cameraFrame.hidden = true;
+  elements.captureButton.disabled = true;
+  elements.cameraButton.textContent = "Start camera";
+}
+
+async function startCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setStatus("This browser cannot access a camera. Open the site in a supported browser over HTTPS.", "error");
+    return;
+  }
+
+  elements.cameraButton.disabled = true;
+  setStatus("Requesting camera access…", "scanning");
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+    });
+    elements.cameraPreview.srcObject = cameraStream;
+    elements.cameraFrame.hidden = false;
+    await elements.cameraPreview.play();
+    elements.cameraButton.textContent = "Stop camera";
+    elements.captureButton.disabled = false;
+    setStatus("Camera ready. Frame the full card and take a photo.", "success");
+  } catch (error) {
+    stopCamera();
+    const message = error?.name === "NotAllowedError"
+      ? "Camera permission was denied. Allow camera access in your browser settings, then try again."
+      : error?.name === "NotFoundError"
+        ? "No camera was found on this device. You can choose an existing photo instead."
+        : error?.name === "NotReadableError"
+          ? "The camera is busy in another app. Close that app and try again."
+          : `Could not start the camera: ${error?.message || error}`;
+    setStatus(message, "error");
+  } finally {
+    elements.cameraButton.disabled = false;
+  }
+}
+
+async function capturePhoto() {
+  const video = elements.cameraPreview;
+  if (!cameraStream || !video.videoWidth || !video.videoHeight) {
+    setStatus("Camera is still starting. Please wait a moment and try again.", "error");
+    return;
+  }
+
+  elements.captureButton.disabled = true;
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+  stopCamera();
+  setStatus("Photo captured. Reading the card…", "scanning");
+  canvas.toBlob((blob) => {
+    if (!blob) {
+      setStatus("Could not capture the photo. Start the camera and try again.", "error");
+      return;
+    }
+    void processImage(new File([blob], "student-card-photo.jpg", { type: "image/jpeg" }));
+  }, "image/jpeg", 0.94);
+}
+
 elements.imageInput.addEventListener("change", () => {
   const file = elements.imageInput.files?.[0];
   void processImage(file);
 });
 
+elements.cameraButton.addEventListener("click", () => {
+  if (cameraStream) stopCamera();
+  else void startCamera();
+});
+elements.captureButton.addEventListener("click", () => void capturePhoto());
+
 window.addEventListener("pagehide", () => {
+  stopCamera();
   if (currentImageUrl) URL.revokeObjectURL(currentImageUrl);
   if (worker) void worker.terminate();
 });

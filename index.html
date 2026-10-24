@@ -11,21 +11,29 @@
       <header class="page-header">
         <p class="eyebrow">LOCAL OCR TEST</p>
         <h1>Student card text reader</h1>
-        <p class="intro">Take or choose a clear photo of the full card. OCR starts as soon as you select the image.</p>
+        <p class="intro">Use the live camera to frame the full card, take a photo, and OCR starts immediately.</p>
       </header>
 
       <section class="scanner-card" aria-labelledby="capture-heading">
         <div class="section-heading">
           <div>
             <p class="eyebrow">CARD PHOTO</p>
-            <h2 id="capture-heading">Capture or choose an image</h2>
+            <h2 id="capture-heading">Scan student card</h2>
           </div>
           <span class="format-badge">NAME + STUDENT ID</span>
         </div>
 
-        <label class="upload-button" for="imageInput">Take photo / choose image</label>
-        <input id="imageInput" class="visually-hidden" type="file" accept="image/*" capture="environment" />
-        <p class="capture-note">Keep the full card in frame, hold the phone steady, and use good light. No crop step is needed.</p>
+        <div id="cameraFrame" class="camera-frame" hidden>
+          <video id="cameraPreview" autoplay muted playsinline aria-label="Live camera preview"></video>
+          <div class="camera-guide" aria-hidden="true"><span></span></div>
+        </div>
+        <div class="camera-controls">
+          <button id="cameraButton" class="primary-button" type="button">Start camera</button>
+          <button id="captureButton" class="secondary-button" type="button" disabled>Take photo</button>
+        </div>
+        <label class="upload-button" for="imageInput">Choose photo from device</label>
+        <input id="imageInput" class="visually-hidden" type="file" accept="image/*" />
+        <p class="capture-note">Allow camera access when prompted. Keep the full card in frame, hold steady, and use good light. Camera access requires HTTPS (Vercel provides this).</p>
 
         <figure id="previewCard" class="preview-card" hidden>
           <img id="imagePreview" alt="Selected student card" />
