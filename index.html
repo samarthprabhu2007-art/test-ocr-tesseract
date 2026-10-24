@@ -10,7 +10,7 @@
     <main class="app-shell">
       <header class="page-header">
         <p class="eyebrow">LOCAL OCR TEST</p>
-        <h1>Student card text reader</h1>
+        <h1>RVCE ID scanner</h1>
         <p class="intro">Start the live camera and keep the full card in view. OCR checks frames for an RVCE ID automatically.</p>
       </header>
 
@@ -59,19 +59,15 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">OCR RESULT</p>
-            <h2 id="result-heading">Extracted fields</h2>
+            <h2 id="result-heading">Detected RVCE ID</h2>
           </div>
           <span id="latency" class="latency-badge">—</span>
         </div>
 
         <dl class="fields-grid">
           <div class="field">
-            <dt>Student name</dt>
-            <dd id="studentName">Waiting for a card photo</dd>
-          </div>
-          <div class="field">
             <dt>Student ID / USN</dt>
-            <dd id="studentId">Waiting for a card photo</dd>
+            <dd id="studentId">Waiting for a card scan</dd>
           </div>
         </dl>
         <p id="fieldNote" class="field-note">OCR suggestions can be wrong. Compare them with the card.</p>

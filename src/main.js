@@ -16,7 +16,6 @@ const elements = {
   status: document.querySelector("#statusText"),
   statusRow: document.querySelector("#statusRow"),
   progress: document.querySelector("#progressText"),
-  name: document.querySelector("#studentName"),
   id: document.querySelector("#studentId"),
   fieldNote: document.querySelector("#fieldNote"),
   latency: document.querySelector("#latency"),
@@ -92,33 +91,6 @@ function extractStudentId(text) {
   return "Not found";
 }
 
-function extractStudentName(text) {
-  const lines = text.split(/\r?\n/).map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
-  const fieldLabel = /^(?:student\s*id|usn|id\s*no|course|institution|college|dob|date\s*of\s*birth|valid\s*upto|blood\s*group)\b/i;
-  const normalizeName = (value) => value
-    .replace(/^[\s:|.\-]+/, "")
-    .replace(/\s+(?:course|institution|college|dob|date\s*of\s*birth|valid\s*upto)\b.*$/i, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const labelMatch = lines[index].match(/\b(?:student\s*)?name\b\s*[:\-]?\s*(.*)$/i);
-    if (!labelMatch) continue;
-
-    const sameLineValue = normalizeName(labelMatch[1]);
-    if (/[A-Za-z]{2,}/.test(sameLineValue) && !fieldLabel.test(sameLineValue)) return sameLineValue;
-
-    // Some card layouts put the value on the next OCR line. Stop at the next
-    // field label so a missing name can never be misreported as "Course".
-    for (let next = index + 1; next < Math.min(index + 3, lines.length); next += 1) {
-      if (fieldLabel.test(lines[next])) break;
-      const nextLineValue = normalizeName(lines[next]);
-      if (/[A-Za-z]{2,}/.test(nextLineValue)) return nextLineValue;
-    }
-  }
-  return "Not found";
-}
-
 async function processImage(file) {
   const thisRequest = ++requestId;
   if (!file) return;
@@ -132,9 +104,8 @@ async function processImage(file) {
   elements.preview.src = currentImageUrl;
   elements.previewCard.hidden = false;
   elements.imageCaption.textContent = `${file.name || "Card photo"} · ${(file.size / 1024 / 1024).toFixed(1)} MB`;
-  elements.name.textContent = "Reading…";
   elements.id.textContent = "Reading…";
-  elements.fieldNote.textContent = "Extracting text from the full image. Check the suggested fields against the card.";
+  elements.fieldNote.textContent = "Searching the full image for an RVCE-format ID.";
   elements.rawText.textContent = "Processing…";
   elements.latency.textContent = "Processing";
   elements.imageInput.disabled = true;
@@ -150,25 +121,20 @@ async function processImage(file) {
     if (thisRequest !== requestId) return;
 
     const rawText = result.data.text?.trim() || "No readable text found.";
-    const studentName = extractStudentName(rawText);
     const studentId = extractStudentId(rawText);
-    elements.name.textContent = studentName;
     elements.id.textContent = studentId;
     elements.rawText.textContent = rawText;
     const totalSeconds = (performance.now() - selectedAt) / 1000;
     const ocrSeconds = (performance.now() - ocrStartedAt) / 1000;
     elements.latency.textContent = `${totalSeconds.toFixed(2)} s total · ${ocrSeconds.toFixed(2)} s OCR`;
 
-    if (studentName === "Not found" || studentId === "Not found") {
-      elements.fieldNote.textContent = "Some fields were not recognized. Review all recognized text below; no crop or automatic correction was applied to the image.";
-    } else {
-      elements.fieldNote.textContent = "Both fields were detected. Verify spelling and characters against the card.";
-    }
+    elements.fieldNote.textContent = studentId === "Not found"
+      ? "No RVCE-format ID was recognized. Review the OCR text below or try a clearer photo."
+      : "RVCE-format ID detected. Verify it against the card.";
     setStatus("OCR finished. Review the extracted fields and recognized text.", "success");
   } catch (error) {
     if (thisRequest !== requestId) return;
     elements.rawText.textContent = "OCR could not finish for this image.";
-    elements.name.textContent = "Not found";
     elements.id.textContent = "Not found";
     elements.latency.textContent = "—";
     setStatus(`OCR failed: ${error?.message || error}`, "error");
@@ -222,7 +188,6 @@ async function scanVideoFrames(scanId) {
       const rawText = result.data.text?.trim() || "No readable text in this frame.";
       const studentId = extractStudentId(rawText);
       elements.rawText.textContent = rawText;
-      elements.name.textContent = extractStudentName(rawText);
 
       if (studentId !== "Not found") {
         elements.id.textContent = studentId;
@@ -254,7 +219,6 @@ function scanAgain() {
   if (!cameraStream) return;
   liveScanId += 1;
   elements.id.textContent = "Searching…";
-  elements.name.textContent = "Waiting for a name";
   elements.rawText.textContent = "Waiting for live OCR text…";
   elements.latency.textContent = "Searching";
   elements.progress.textContent = "";
@@ -288,7 +252,6 @@ async function startCamera() {
     elements.captureButton.textContent = "Scan again";
     elements.previewCard.hidden = true;
     elements.id.textContent = "Searching…";
-    elements.name.textContent = "Waiting for a name";
     elements.rawText.textContent = "Waiting for live OCR text…";
     elements.latency.textContent = "Searching";
     setStatus("Camera ready. Searching video frames for an RVCE ID…", "scanning");
