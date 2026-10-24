@@ -30,6 +30,8 @@ const elements = {
 
 let workerPromise;
 let worker;
+let extraWorkersPromise;
+let extraWorkers = [];
 let currentImageUrl = "";
 let requestId = 0;
 let cameraStream = null;
@@ -71,6 +73,36 @@ function loadOcrWorker() {
   return workerPromise;
 }
 
+async function loadOcrWorkers() {
+  const primaryWorker = await loadOcrWorker();
+  if (!extraWorkersPromise) {
+    extraWorkersPromise = Promise.all([PSM.SINGLE_LINE, PSM.SPARSE_TEXT].map(async (mode) => {
+      const extraWorker = await createWorker("eng", 1);
+      await extraWorker.setParameters({
+        tessedit_pageseg_mode: mode,
+        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+      });
+      return extraWorker;
+    })).then((createdWorkers) => {
+      extraWorkers = createdWorkers;
+      return extraWorkers;
+    }).catch((error) => {
+      extraWorkersPromise = null;
+      throw error;
+    });
+  }
+  return [primaryWorker, ...(await extraWorkersPromise)];
+}
+
+async function terminateOcrWorkers() {
+  const activeWorkers = [...(worker ? [worker] : []), ...extraWorkers];
+  worker = null;
+  workerPromise = null;
+  extraWorkers = [];
+  extraWorkersPromise = null;
+  await Promise.allSettled(activeWorkers.map((activeWorker) => activeWorker.terminate()));
+}
+
 function extractStudentId(text) {
   const cleanedText = text.toUpperCase();
   const compact = cleanedText.replace(/[^A-Z0-9]/g, "");
@@ -80,6 +112,66 @@ function extractStudentId(text) {
   const rvceId = compact.match(/RVCE\d{2}[A-Z]{2,4}\d{2,4}/);
   if (rvceId) return rvceId[0];
   return "Not found";
+}
+
+function createEnhancedOcrCanvas(source) {
+  const scale = 1.5;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(source.width * scale));
+  canvas.height = Math.max(1, Math.round(source.height * scale));
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(source, 0, 0, canvas.width, canvas.height);
+  const image = context.getImageData(0, 0, canvas.width, canvas.height);
+  const pixels = image.data;
+  for (let index = 0; index < pixels.length; index += 4) {
+    const gray = 0.299 * pixels[index] + 0.587 * pixels[index + 1] + 0.114 * pixels[index + 2];
+    const contrast = Math.max(0, Math.min(255, (gray - 128) * 1.35 + 128));
+    pixels[index] = contrast;
+    pixels[index + 1] = contrast;
+    pixels[index + 2] = contrast;
+  }
+  context.putImageData(image, 0, 0);
+  return canvas;
+}
+
+async function recognizeInParallel(image) {
+  const activeWorkers = await loadOcrWorkers();
+  const hasCanvasDimensions = Number.isFinite(image.width) && image.width > 0
+    && Number.isFinite(image.height) && image.height > 0;
+  const enhancedImage = hasCanvasDimensions ? createEnhancedOcrCanvas(image) : image;
+  const inputs = [image, image, enhancedImage];
+
+  return new Promise((resolve) => {
+    let completed = 0;
+    let resolved = false;
+    const recognizedTexts = [];
+    const completeOne = () => {
+      completed += 1;
+      if (!resolved && completed === activeWorkers.length) {
+        resolved = true;
+        const bestText = recognizedTexts
+          .filter(Boolean)
+          .sort((first, second) => second.length - first.length)[0] || "No readable text found.";
+        resolve({ text: bestText, studentId: extractStudentId(bestText) });
+      }
+    };
+
+    activeWorkers.forEach((activeWorker, index) => {
+      activeWorker.recognize(inputs[index]).then((result) => {
+        const text = result.data.text?.trim() || "";
+        recognizedTexts[index] = text;
+        const studentId = extractStudentId(text);
+        if (!resolved && studentId !== "Not found") {
+          resolved = true;
+          resolve({ text, studentId });
+          return;
+        }
+        completeOne();
+      }).catch(() => {
+        completeOne();
+      });
+    });
+  });
 }
 
 async function processImage(file) {
@@ -105,14 +197,14 @@ async function processImage(file) {
   const selectedAt = performance.now();
 
   try {
-    const activeWorker = await loadOcrWorker();
+    await loadOcrWorkers();
     if (thisRequest !== requestId) return;
     const ocrStartedAt = performance.now();
-    const result = await activeWorker.recognize(file);
+    const result = await recognizeInParallel(file);
     if (thisRequest !== requestId) return;
 
-    const rawText = result.data.text?.trim() || "No readable text found.";
-    const studentId = extractStudentId(rawText);
+    const rawText = result.text;
+    const studentId = result.studentId;
     elements.id.textContent = studentId;
     elements.rawText.textContent = rawText;
     const totalSeconds = (performance.now() - selectedAt) / 1000;
@@ -229,7 +321,7 @@ async function scanVideoFrames(scanId) {
   const context = canvas.getContext("2d", { willReadFrequently: true });
 
   try {
-    const activeWorker = await loadOcrWorker();
+    await loadOcrWorkers();
     while (scanId === liveScanId && cameraStream) {
       if (!video.videoWidth || !video.videoHeight) {
         await wait(150);
@@ -266,12 +358,12 @@ async function scanVideoFrames(scanId) {
       canvas.height = Math.max(1, Math.round(sourceHeight * scale));
       context.drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
 
-      const result = await activeWorker.recognize(canvas);
+      const result = await recognizeInParallel(canvas);
       if (scanId !== liveScanId || !cameraStream) return;
       frameCount += 1;
 
-      const rawText = result.data.text?.trim() || "No readable text in this frame.";
-      const studentId = extractStudentId(rawText);
+      const rawText = result.text;
+      const studentId = result.studentId;
       elements.rawText.textContent = rawText;
 
       if (studentId !== "Not found") {
@@ -381,9 +473,9 @@ elements.dialogClose.addEventListener("click", () => elements.detectedDialog.clo
 window.addEventListener("pagehide", () => {
   stopCamera();
   if (currentImageUrl) URL.revokeObjectURL(currentImageUrl);
-  if (worker) void worker.terminate();
+  void terminateOcrWorkers();
 });
 
-void loadOcrWorker().catch(() => {
+void loadOcrWorkers().catch(() => {
   // The status message explains how to retry when the user selects an image.
 });
