@@ -6,8 +6,6 @@ const elements = {
   cameraFrame: document.querySelector("#cameraFrame"),
   cameraPreview: document.querySelector("#cameraPreview"),
   cameraButton: document.querySelector("#cameraButton"),
-  cameraSelect: document.querySelector("#cameraSelect"),
-  cameraHint: document.querySelector("#cameraHint"),
   captureButton: document.querySelector("#captureButton"),
   detectedDialog: document.querySelector("#detectedDialog"),
   dialogStudentId: document.querySelector("#dialogStudentId"),
@@ -30,7 +28,6 @@ let currentImageUrl = "";
 let requestId = 0;
 let cameraStream = null;
 let liveScanId = 0;
-let selectedCameraId = "";
 
 function setStatus(message, kind = "scanning") {
   elements.status.textContent = message;
@@ -158,44 +155,7 @@ function stopCamera() {
   elements.cameraPreview.srcObject = null;
   elements.cameraFrame.hidden = true;
   elements.captureButton.disabled = true;
-  elements.cameraSelect.disabled = true;
   elements.cameraButton.textContent = "Start camera";
-}
-
-async function configureCamera(track) {
-  let continuousFocus = false;
-  try {
-    const focusModes = track.getCapabilities?.().focusMode;
-    if (focusModes?.includes("continuous")) {
-      await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
-      continuousFocus = true;
-    }
-  } catch {
-    // Focus is device/browser controlled when the constraint is unavailable.
-  }
-
-  elements.cameraHint.textContent = continuousFocus
-    ? "Continuous autofocus is enabled."
-    : "This camera does not expose manual focus controls to the browser; autofocus is left to the device.";
-}
-
-async function populateCameraChoices(activeTrack) {
-  const currentDeviceId = activeTrack.getSettings?.().deviceId || "";
-  const cameras = (await navigator.mediaDevices.enumerateDevices())
-    .filter((device) => device.kind === "videoinput");
-  const defaultOption = new Option("Rear camera (default)", "");
-  elements.cameraSelect.replaceChildren(defaultOption);
-  for (const [index, camera] of cameras.entries()) {
-    const option = new Option(camera.label || `Camera ${index + 1}`, camera.deviceId);
-    if (camera.deviceId === currentDeviceId) option.textContent += " (current)";
-    elements.cameraSelect.add(option);
-  }
-  // Keep the selected lens if available. Otherwise the default environment
-  // camera remains selected and the picker still allows choosing another lens.
-  elements.cameraSelect.value = selectedCameraId && cameras.some((camera) => camera.deviceId === selectedCameraId)
-    ? selectedCameraId
-    : "";
-  elements.cameraSelect.disabled = cameras.length <= 1;
 }
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -274,27 +234,16 @@ async function startCamera() {
   }
 
   elements.cameraButton.disabled = true;
-  elements.cameraSelect.disabled = true;
   setStatus("Requesting camera access…", "scanning");
   try {
-    const video = selectedCameraId
-      ? {
-          deviceId: { exact: selectedCameraId },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        }
-      : {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        };
     cameraStream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video,
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
     });
-    const videoTrack = cameraStream.getVideoTracks()[0];
-    await configureCamera(videoTrack);
-    await populateCameraChoices(videoTrack);
     elements.cameraPreview.srcObject = cameraStream;
     elements.cameraFrame.hidden = false;
     await elements.cameraPreview.play();
@@ -319,7 +268,6 @@ async function startCamera() {
     setStatus(message, "error");
   } finally {
     elements.cameraButton.disabled = false;
-    if (!cameraStream) elements.cameraSelect.disabled = true;
   }
 }
 
@@ -334,13 +282,6 @@ elements.cameraButton.addEventListener("click", () => {
   else void startCamera();
 });
 elements.captureButton.addEventListener("click", scanAgain);
-elements.cameraSelect.addEventListener("change", () => {
-  selectedCameraId = elements.cameraSelect.value;
-  if (cameraStream) {
-    stopCamera();
-    void startCamera();
-  }
-});
 elements.dialogClose.addEventListener("click", () => elements.detectedDialog.close());
 
 window.addEventListener("pagehide", () => {
