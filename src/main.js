@@ -62,32 +62,56 @@ function loadOcrWorker() {
 
 function extractStudentId(text) {
   const cleanedText = text.toUpperCase().replace(/[|]/g, "I");
-  const tokens = cleanedText.match(/[A-Z0-9][A-Z0-9\s-]{7,18}[A-Z0-9]/g) || [];
+  const compact = cleanedText.replace(/[^A-Z0-9]/g, "");
 
-  for (const token of tokens) {
-    const compact = token.replace(/[^A-Z0-9]/g, "");
-    const repaired = compact
-      .replace(/^I(?=R[ZV])/, "1")
-      .replace(/(?<=1R[ZV]\d{2}[A-Z]{2,3})[OQ]/g, "0");
-    const match = repaired.match(/1R[ZV]\d{2}[A-Z]{2,3}\d{2,3}/);
-    if (match) return match[0];
+  // RVCE card IDs (for example RVCE25BCS104) and RVCE USNs are both used
+  // on member cards. OCR may insert spaces or confuse 0/O and 1/I.
+  const rvceId = compact.match(/RVCE\d{2}[A-Z]{2,4}\d{2,4}/);
+  if (rvceId) return rvceId[0];
+
+  const repaired = compact
+    .replace(/^I(?=R[ZV])/, "1")
+    .replace(/(?<=1R[ZV]\d{2}[A-Z]{2,3})[OQ]/g, "0");
+  const usn = repaired.match(/1R[ZV]\d{2}[A-Z]{2,3}\d{2,3}/);
+  if (usn) return usn[0];
+
+  // Restrict a second pass to text near an ID label to avoid returning a
+  // course code or another number elsewhere on the card.
+  const labeled = cleanedText.match(/(?:STUDENT\s*ID|USN|ID\s*NO)\s*[:\-]?\s*([A-Z0-9\s|]{8,24})/);
+  if (labeled) {
+    const candidate = labeled[1].replace(/[^A-Z0-9]/g, "");
+    const labeledRvceId = candidate.match(/RVCE\d{2}[A-Z]{2,4}\d{2,4}/);
+    if (labeledRvceId) return labeledRvceId[0];
+    const labeledUsn = candidate.replace(/^I(?=R[ZV])/, "1").match(/1R[ZV]\d{2}[A-Z]{2,3}\d{2,3}/);
+    if (labeledUsn) return labeledUsn[0];
   }
   return "Not found";
 }
 
 function extractStudentName(text) {
   const lines = text.split(/\r?\n/).map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
-  const nameIndex = lines.findIndex((line) => /\b(?:student\s*)?name\b/i.test(line));
+  const fieldLabel = /^(?:student\s*id|usn|id\s*no|course|institution|college|dob|date\s*of\s*birth|valid\s*upto|blood\s*group)\b/i;
+  const normalizeName = (value) => value
+    .replace(/^[\s:|.\-]+/, "")
+    .replace(/\s+(?:course|institution|college|dob|date\s*of\s*birth|valid\s*upto)\b.*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  if (nameIndex >= 0) {
-    const labeledLine = lines[nameIndex];
-    const value = labeledLine.replace(/^.*?\b(?:student\s*)?name\b\s*[:\-]?\s*/i, "").trim();
-    if (/[A-Za-z]{2,}/.test(value)) return value;
-    if (lines[nameIndex + 1] && !/\b(?:usn|student\s*id|id\s*no)\b/i.test(lines[nameIndex + 1])) {
-      return lines[nameIndex + 1];
+  for (let index = 0; index < lines.length; index += 1) {
+    const labelMatch = lines[index].match(/\b(?:student\s*)?name\b\s*[:\-]?\s*(.*)$/i);
+    if (!labelMatch) continue;
+
+    const sameLineValue = normalizeName(labelMatch[1]);
+    if (/[A-Za-z]{2,}/.test(sameLineValue) && !fieldLabel.test(sameLineValue)) return sameLineValue;
+
+    // Some card layouts put the value on the next OCR line. Stop at the next
+    // field label so a missing name can never be misreported as "Course".
+    for (let next = index + 1; next < Math.min(index + 3, lines.length); next += 1) {
+      if (fieldLabel.test(lines[next])) break;
+      const nextLineValue = normalizeName(lines[next]);
+      if (/[A-Za-z]{2,}/.test(nextLineValue)) return nextLineValue;
     }
   }
-
   return "Not found";
 }
 
