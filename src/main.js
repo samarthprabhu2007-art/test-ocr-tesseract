@@ -244,6 +244,14 @@ async function startCamera() {
         height: { ideal: 1080 },
       },
     });
+    const videoTrack = cameraStream.getVideoTracks()[0];
+    try {
+      if (videoTrack.getCapabilities?.().focusMode?.includes("continuous")) {
+        await videoTrack.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+      }
+    } catch {
+      // Keep the camera running if this browser or device does not support autofocus constraints.
+    }
     elements.cameraPreview.srcObject = cameraStream;
     elements.cameraFrame.hidden = false;
     await elements.cameraPreview.play();
