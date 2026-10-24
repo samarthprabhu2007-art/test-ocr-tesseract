@@ -104,13 +104,32 @@ async function terminateOcrWorkers() {
 }
 
 function extractStudentId(text) {
-  const cleanedText = text.toUpperCase();
-  const compact = cleanedText.replace(/[^A-Z0-9]/g, "");
+  const compact = text.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const digitLookalikes = { O: "0", Q: "0", D: "0", I: "1", L: "1", Z: "2", S: "5", G: "6", B: "8" };
+  const letterLookalikes = { 0: "O", 1: "I", 2: "Z", 5: "S", 6: "G", 8: "B" };
+  const asDigit = (character) => /\d/.test(character) ? character : digitLookalikes[character];
+  const asLetter = (character) => /[A-Z]/.test(character) ? character : letterLookalikes[character];
 
-  // Only accept the printed RVCE card ID format, e.g. RVCE25BCS104.
-  // Compacting allows OCR to insert spaces or punctuation within the value.
-  const rvceId = compact.match(/RVCE\d{2}[A-Z]{2,4}\d{2,4}/);
-  if (rvceId) return rvceId[0];
+  // Card ID shape: RVCE + year (2 digits) + fixed B + branch (2 letters)
+  // + serial (3 digits). Only accept a complete ID, correcting common OCR
+  // digit/letter lookalikes in their known positions.
+  let searchFrom = 0;
+  while (searchFrom < compact.length) {
+    const start = compact.indexOf("RVCE", searchFrom);
+    if (start < 0) break;
+    const candidate = compact.slice(start, start + 12);
+    searchFrom = start + 4;
+    if (candidate.length !== 12) continue;
+
+    const year = `${asDigit(candidate[4]) || ""}${asDigit(candidate[5]) || ""}`;
+    const commonB = candidate[6] === "B" || candidate[6] === "8" ? "B" : "";
+    const branch = `${asLetter(candidate[7]) || ""}${asLetter(candidate[8]) || ""}`;
+    const serial = `${asDigit(candidate[9]) || ""}${asDigit(candidate[10]) || ""}${asDigit(candidate[11]) || ""}`;
+    if (/^\d{2}$/.test(year) && commonB && /^[A-Z]{2}$/.test(branch) && /^\d{3}$/.test(serial)) {
+      return `RVCE${year}B${branch}${serial}`;
+    }
+  }
+
   return "Not found";
 }
 
