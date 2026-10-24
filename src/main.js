@@ -6,6 +6,11 @@ const elements = {
   cameraFrame: document.querySelector("#cameraFrame"),
   cameraPreview: document.querySelector("#cameraPreview"),
   cameraGuideRegion: document.querySelector(".camera-guide span"),
+  cameraTools: document.querySelector("#cameraTools"),
+  zoomRange: document.querySelector("#zoomRange"),
+  zoomValue: document.querySelector("#zoomValue"),
+  flashButton: document.querySelector("#flashButton"),
+  cameraToolsHint: document.querySelector("#cameraToolsHint"),
   cameraButton: document.querySelector("#cameraButton"),
   captureButton: document.querySelector("#captureButton"),
   detectedDialog: document.querySelector("#detectedDialog"),
@@ -29,6 +34,8 @@ let currentImageUrl = "";
 let requestId = 0;
 let cameraStream = null;
 let liveScanId = 0;
+let cameraTrack = null;
+let torchEnabled = false;
 
 function setStatus(message, kind = "scanning") {
   elements.status.textContent = message;
@@ -157,7 +164,77 @@ function stopCamera() {
   elements.cameraFrame.hidden = true;
   elements.captureButton.disabled = true;
   elements.cameraButton.textContent = "Start camera";
+  elements.cameraTools.hidden = true;
+  elements.cameraToolsHint.hidden = true;
+  cameraTrack = null;
+  torchEnabled = false;
+  elements.flashButton.setAttribute("aria-pressed", "false");
+  elements.flashButton.textContent = "Flash unavailable";
 }
+
+function setupCameraTools(track) {
+  cameraTrack = track;
+  torchEnabled = false;
+  elements.cameraTools.hidden = false;
+  elements.cameraToolsHint.hidden = false;
+  elements.flashButton.setAttribute("aria-pressed", "false");
+
+  let capabilities = {};
+  let settings = {};
+  try {
+    capabilities = track.getCapabilities?.() || {};
+    settings = track.getSettings?.() || {};
+  } catch {
+    // Browsers without track capability reporting get disabled controls below.
+  }
+
+  const zoom = capabilities.zoom;
+  const supportsZoom = zoom && Number.isFinite(zoom.min) && Number.isFinite(zoom.max) && zoom.max > zoom.min;
+  elements.zoomRange.disabled = !supportsZoom;
+  if (supportsZoom) {
+    elements.zoomRange.min = String(zoom.min);
+    elements.zoomRange.max = String(zoom.max);
+    elements.zoomRange.step = String(zoom.step || 0.1);
+    elements.zoomRange.value = String(Math.min(zoom.max, Math.max(zoom.min, settings.zoom ?? zoom.min)));
+  } else {
+    elements.zoomRange.min = "1";
+    elements.zoomRange.max = "1";
+    elements.zoomRange.value = "1";
+  }
+  elements.zoomValue.textContent = `${Number(elements.zoomRange.value).toFixed(1)}×`;
+
+  const supportsTorch = capabilities.torch === true;
+  elements.flashButton.disabled = !supportsTorch;
+  elements.flashButton.textContent = supportsTorch ? "Turn flash on" : "Flash unavailable";
+  elements.cameraToolsHint.textContent = [
+    supportsZoom ? "Zoom supported" : "Zoom is not exposed by this device/browser",
+    supportsTorch ? "flash supported" : "flash is not exposed by this device/browser",
+  ].join(" · ");
+}
+
+elements.zoomRange.addEventListener("input", () => {
+  elements.zoomValue.textContent = `${Number(elements.zoomRange.value).toFixed(1)}×`;
+});
+elements.zoomRange.addEventListener("change", async () => {
+  if (!cameraTrack || elements.zoomRange.disabled) return;
+  try {
+    await cameraTrack.applyConstraints({ advanced: [{ zoom: Number(elements.zoomRange.value) }] });
+  } catch {
+    elements.cameraToolsHint.textContent = "The camera could not apply this zoom level.";
+  }
+});
+elements.flashButton.addEventListener("click", async () => {
+  if (!cameraTrack || elements.flashButton.disabled) return;
+  const nextTorchState = !torchEnabled;
+  try {
+    await cameraTrack.applyConstraints({ advanced: [{ torch: nextTorchState }] });
+    torchEnabled = nextTorchState;
+    elements.flashButton.setAttribute("aria-pressed", String(torchEnabled));
+    elements.flashButton.textContent = torchEnabled ? "Turn flash off" : "Turn flash on";
+  } catch {
+    elements.cameraToolsHint.textContent = "The camera could not change the flash setting.";
+  }
+});
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -277,6 +354,7 @@ async function startCamera() {
     } catch {
       // Keep the camera running if this browser or device does not support autofocus constraints.
     }
+    setupCameraTools(videoTrack);
     elements.cameraPreview.srcObject = cameraStream;
     elements.cameraFrame.hidden = false;
     await elements.cameraPreview.play();

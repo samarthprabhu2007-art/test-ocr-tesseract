@@ -27,6 +27,13 @@ h2 { margin: 0; font-size: clamp(18px, 4vw, 22px); }
 .camera-frame video { display: block; width: 100%; height: 100%; min-height: 220px; object-fit: contain; }
 .camera-guide { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
 .camera-guide span { width: 96%; height: 20%; border: 2px solid #85f0a2; border-radius: 6px; box-shadow: 0 0 0 999px #0002; }
+.camera-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; margin-top: 13px; }
+.zoom-control { display: grid; gap: 7px; color: #bdcce2; font-size: 13px; }
+.zoom-control span { display: flex; justify-content: space-between; }
+.zoom-control input { width: 100%; accent-color: #85f0a2; }
+.flash-button { min-height: 42px; border: 1px solid #405674; border-radius: 9px; padding: 0 13px; color: #eef4ff; background: #172946; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; }
+.flash-button[aria-pressed="true"] { border-color: #d3a642; color: #fff0b7; background: #443512; }
+.flash-button:disabled { cursor: not-allowed; opacity: .55; }
 .camera-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 13px 0; }
 .camera-controls button { min-height: 48px; border: 1px solid #345078; border-radius: 10px; color: #eef4ff; background: #142745; font: inherit; font-weight: 700; cursor: pointer; }
 .camera-controls .primary-button { border-color: #2563eb; background: #2563eb; }

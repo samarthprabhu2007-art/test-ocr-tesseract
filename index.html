@@ -27,6 +27,14 @@
           <video id="cameraPreview" autoplay muted playsinline aria-label="Live camera preview"></video>
           <div class="camera-guide" aria-hidden="true"><span></span></div>
         </div>
+        <div id="cameraTools" class="camera-tools" hidden>
+          <label class="zoom-control" for="zoomRange">
+            <span>Zoom <output id="zoomValue" for="zoomRange">—</output></span>
+            <input id="zoomRange" type="range" min="1" max="1" step="0.1" value="1" disabled />
+          </label>
+          <button id="flashButton" class="flash-button" type="button" aria-pressed="false" disabled>Flash unavailable</button>
+        </div>
+        <p id="cameraToolsHint" class="camera-hint" hidden></p>
         <div class="camera-controls">
           <button id="cameraButton" class="primary-button" type="button">Start camera</button>
           <button id="captureButton" class="secondary-button" type="button" disabled>Scan again</button>
