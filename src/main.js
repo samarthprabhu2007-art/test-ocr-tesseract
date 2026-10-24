@@ -25,6 +25,7 @@ let worker;
 let currentImageUrl = "";
 let requestId = 0;
 let cameraStream = null;
+let liveScanId = 0;
 
 function setStatus(message, kind = "scanning") {
   elements.status.textContent = message;
@@ -49,7 +50,7 @@ function loadOcrWorker() {
         tessedit_pageseg_mode: PSM.AUTO,
         preserve_interword_spaces: "1",
       });
-      setStatus("OCR engine ready. Take or choose a card photo.", "success");
+      setStatus("OCR engine ready. Start the camera to scan for an RVCE ID.", "success");
       return worker;
     }).catch((error) => {
       workerPromise = null;
@@ -177,6 +178,7 @@ async function processImage(file) {
 }
 
 function stopCamera() {
+  liveScanId += 1;
   if (cameraStream) {
     for (const track of cameraStream.getTracks()) track.stop();
     cameraStream = null;
@@ -185,6 +187,74 @@ function stopCamera() {
   elements.cameraFrame.hidden = true;
   elements.captureButton.disabled = true;
   elements.cameraButton.textContent = "Start camera";
+}
+
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+async function scanVideoFrames(scanId) {
+  const startedAt = performance.now();
+  let frameCount = 0;
+  const video = elements.cameraPreview;
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+
+  try {
+    const activeWorker = await loadOcrWorker();
+    while (scanId === liveScanId && cameraStream) {
+      if (!video.videoWidth || !video.videoHeight) {
+        await wait(150);
+        continue;
+      }
+
+      // Process the whole frame, capped at 1280px wide to reduce per-frame OCR work.
+      const scale = Math.min(1, 1280 / video.videoWidth);
+      canvas.width = Math.round(video.videoWidth * scale);
+      canvas.height = Math.round(video.videoHeight * scale);
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const result = await activeWorker.recognize(canvas);
+      if (scanId !== liveScanId || !cameraStream) return;
+      frameCount += 1;
+
+      const rawText = result.data.text?.trim() || "No readable text in this frame.";
+      const studentId = extractStudentId(rawText);
+      elements.rawText.textContent = rawText;
+      elements.name.textContent = extractStudentName(rawText);
+
+      if (studentId !== "Not found") {
+        elements.id.textContent = studentId;
+        elements.latency.textContent = `${((performance.now() - startedAt) / 1000).toFixed(2)} s to detect`;
+        elements.fieldNote.textContent = "RVCE-format ID found in live video OCR. Check it against the card.";
+        elements.progress.textContent = `ID found after ${frameCount} frame${frameCount === 1 ? "" : "s"}.`;
+        setStatus("RVCE ID detected. Camera remains on; select Scan again to search again.", "success");
+        return;
+      }
+
+      elements.id.textContent = "Searching…";
+      elements.latency.textContent = `${((performance.now() - startedAt) / 1000).toFixed(1)} s`;
+      elements.fieldNote.textContent = "Keep the RVCE ID in view, in focus, and well lit.";
+      elements.progress.textContent = `Checked ${frameCount} frame${frameCount === 1 ? "" : "s"}. Looking for an RVCE-format ID…`;
+      setStatus("Looking for an RVCE ID in the live camera…", "scanning");
+      await wait(250);
+    }
+  } catch (error) {
+    if (scanId === liveScanId) {
+      setStatus(`Live OCR failed: ${error?.message || error}. Stop and restart the camera to retry.`, "error");
+    }
+  }
+}
+
+function scanAgain() {
+  if (!cameraStream) return;
+  liveScanId += 1;
+  elements.id.textContent = "Searching…";
+  elements.name.textContent = "Waiting for a name";
+  elements.rawText.textContent = "Waiting for live OCR text…";
+  elements.latency.textContent = "Searching";
+  elements.progress.textContent = "";
+  elements.fieldNote.textContent = "Keep the RVCE ID in view, in focus, and well lit.";
+  setStatus("Looking for an RVCE ID in the live camera…", "scanning");
+  void scanVideoFrames(liveScanId);
 }
 
 async function startCamera() {
@@ -209,7 +279,14 @@ async function startCamera() {
     await elements.cameraPreview.play();
     elements.cameraButton.textContent = "Stop camera";
     elements.captureButton.disabled = false;
-    setStatus("Camera ready. Frame the full card and take a photo.", "success");
+    elements.captureButton.textContent = "Scan again";
+    elements.previewCard.hidden = true;
+    elements.id.textContent = "Searching…";
+    elements.name.textContent = "Waiting for a name";
+    elements.rawText.textContent = "Waiting for live OCR text…";
+    elements.latency.textContent = "Searching";
+    setStatus("Camera ready. Searching video frames for an RVCE ID…", "scanning");
+    scanAgain();
   } catch (error) {
     stopCamera();
     const message = error?.name === "NotAllowedError"
@@ -225,31 +302,9 @@ async function startCamera() {
   }
 }
 
-async function capturePhoto() {
-  const video = elements.cameraPreview;
-  if (!cameraStream || !video.videoWidth || !video.videoHeight) {
-    setStatus("Camera is still starting. Please wait a moment and try again.", "error");
-    return;
-  }
-
-  elements.captureButton.disabled = true;
-  const canvas = document.createElement("canvas");
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-  stopCamera();
-  setStatus("Photo captured. Reading the card…", "scanning");
-  canvas.toBlob((blob) => {
-    if (!blob) {
-      setStatus("Could not capture the photo. Start the camera and try again.", "error");
-      return;
-    }
-    void processImage(new File([blob], "student-card-photo.jpg", { type: "image/jpeg" }));
-  }, "image/jpeg", 0.94);
-}
-
 elements.imageInput.addEventListener("change", () => {
   const file = elements.imageInput.files?.[0];
+  stopCamera();
   void processImage(file);
 });
 
@@ -257,7 +312,7 @@ elements.cameraButton.addEventListener("click", () => {
   if (cameraStream) stopCamera();
   else void startCamera();
 });
-elements.captureButton.addEventListener("click", () => void capturePhoto());
+elements.captureButton.addEventListener("click", scanAgain);
 
 window.addEventListener("pagehide", () => {
   stopCamera();
