@@ -48,6 +48,12 @@
           <figcaption id="imageCaption"></figcaption>
         </figure>
 
+        <details class="ocr-input-details">
+          <summary>Show the exact live crop OCR reads</summary>
+          <canvas id="ocrInputPreview" aria-label="Exact camera crop passed to OCR"></canvas>
+          <p>The green guide and dim overlay are not in this image. This is the raw video crop passed to OCR.</p>
+        </details>
+
         <div id="statusRow" class="status-row status-scanning" role="status" aria-live="polite">
           <span id="statusDot" class="status-dot" aria-hidden="true"></span>
           <p id="statusText">Loading OCR engine…</p>

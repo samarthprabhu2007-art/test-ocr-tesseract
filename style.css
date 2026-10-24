@@ -52,6 +52,10 @@ h2 { margin: 0; font-size: clamp(18px, 4vw, 22px); }
 .preview-card { margin: 18px 0 0; overflow: hidden; border: 1px solid #2c4264; border-radius: 12px; background: #060b14; }
 .preview-card img { display: block; width: 100%; max-height: 440px; object-fit: contain; }
 .preview-card figcaption { padding: 8px 11px; color: #9eafc8; font-size: 12px; }
+.ocr-input-details { margin-top: 14px; border: 1px solid #243958; border-radius: 10px; padding: 11px 12px; color: #bdcce2; background: #0a1427; }
+.ocr-input-details summary { cursor: pointer; font-size: 13px; font-weight: 650; }
+.ocr-input-details canvas { display: block; width: 100%; max-height: 220px; margin-top: 10px; border: 1px solid #345078; border-radius: 6px; background: #03070d; object-fit: contain; }
+.ocr-input-details p { margin: 8px 0 0; color: #8fa2bd; font-size: 12px; line-height: 1.5; }
 .status-row { display: flex; align-items: flex-start; gap: 10px; margin-top: 18px; color: #b8c7df; }
 .status-row p { margin: 0; line-height: 1.5; }
 .status-dot { width: 9px; height: 9px; flex: none; margin-top: 5px; border-radius: 50%; background: #71819a; }

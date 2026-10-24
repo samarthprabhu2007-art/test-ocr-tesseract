@@ -17,6 +17,7 @@ const elements = {
   dialogStudentId: document.querySelector("#dialogStudentId"),
   dialogClose: document.querySelector("#dialogClose"),
   previewCard: document.querySelector("#previewCard"),
+  ocrInputPreview: document.querySelector("#ocrInputPreview"),
   preview: document.querySelector("#imagePreview"),
   imageCaption: document.querySelector("#imageCaption"),
   status: document.querySelector("#statusText"),
@@ -328,7 +329,7 @@ async function scanVideoFrames(scanId) {
   const startedAt = performance.now();
   let frameCount = 0;
   const video = elements.cameraPreview;
-  const canvas = document.createElement("canvas");
+  const canvas = elements.ocrInputPreview;
   const context = canvas.getContext("2d", { willReadFrequently: true });
 
   try {
