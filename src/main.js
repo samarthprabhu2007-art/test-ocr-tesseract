@@ -104,20 +104,19 @@ async function terminateOcrWorkers() {
 }
 
 function extractStudentId(text) {
-  const compact = text.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const normalizedText = text.toUpperCase();
   const digitLookalikes = { O: "0", Q: "0", D: "0", I: "1", L: "1", Z: "2", S: "5", G: "6", B: "8" };
   const letterLookalikes = { 0: "O", 1: "I", 2: "Z", 5: "S", 6: "G", 8: "B" };
   const asDigit = (character) => /\d/.test(character) ? character : digitLookalikes[character];
   const asLetter = (character) => /[A-Z]/.test(character) ? character : letterLookalikes[character];
 
-  // The 12-character ID has fixed display values in slots 1-4 and 7.
-  // OCR may misread those slots, so preserve only year (5-6), branch (8-9),
-  // and serial (10-12), then display the known fixed RVCE and B values.
-  for (let start = 0; start <= compact.length - 12; start += 1) {
-    const candidate = compact.slice(start, start + 12);
-    const year = `${asDigit(candidate[4]) || ""}${asDigit(candidate[5]) || ""}`;
-    const branch = `${asLetter(candidate[7]) || ""}${asLetter(candidate[8]) || ""}`;
-    const serial = `${asDigit(candidate[9]) || ""}${asDigit(candidate[10]) || ""}${asDigit(candidate[11]) || ""}`;
+  // Require a complete bounded 12-character ID shape. Separators between
+  // chunks are okay, but don't accept a matching substring inside other text.
+  const pattern = /(^|[^A-Z0-9])([A-Z]{4})[ \t.:_-]*([A-Z0-9]{2})[ \t.:_-]*([A-Z0-9])[ \t.:_-]*([A-Z0-9]{2})[ \t.:_-]*([A-Z0-9]{3})(?=$|[^A-Z0-9])/g;
+  for (const match of normalizedText.matchAll(pattern)) {
+    const year = [...match[3]].map(asDigit).join("");
+    const branch = [...match[5]].map(asLetter).join("");
+    const serial = [...match[6]].map(asDigit).join("");
     if (/^\d{2}$/.test(year) && /^[A-Z]{2}$/.test(branch) && /^\d{3}$/.test(serial)) {
       return `RVCE${year}B${branch}${serial}`;
     }
