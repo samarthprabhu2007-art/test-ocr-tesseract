@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#07101c" />
+    <title>RVCE card OCR test</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="page-header">
+        <p class="eyebrow">LOCAL OCR TEST</p>
+        <h1>Student card text reader</h1>
+        <p class="intro">Take or choose a clear photo of the full card. OCR starts as soon as you select the image.</p>
+      </header>
+
+      <section class="scanner-card" aria-labelledby="capture-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">CARD PHOTO</p>
+            <h2 id="capture-heading">Capture or choose an image</h2>
+          </div>
+          <span class="format-badge">NAME + STUDENT ID</span>
+        </div>
+
+        <label class="upload-button" for="imageInput">Take photo / choose image</label>
+        <input id="imageInput" class="visually-hidden" type="file" accept="image/*" capture="environment" />
+        <p class="capture-note">Keep the full card in frame, hold the phone steady, and use good light. No crop step is needed.</p>
+
+        <figure id="previewCard" class="preview-card" hidden>
+          <img id="imagePreview" alt="Selected student card" />
+          <figcaption id="imageCaption"></figcaption>
+        </figure>
+
+        <div id="statusRow" class="status-row status-scanning" role="status" aria-live="polite">
+          <span id="statusDot" class="status-dot" aria-hidden="true"></span>
+          <p id="statusText">Loading OCR engine…</p>
+        </div>
+        <p id="progressText" class="progress-text"></p>
+      </section>
+
+      <section class="result-card" aria-labelledby="result-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">OCR RESULT</p>
+            <h2 id="result-heading">Extracted fields</h2>
+          </div>
+          <span id="latency" class="latency-badge">—</span>
+        </div>
+
+        <dl class="fields-grid">
+          <div class="field">
+            <dt>Student name</dt>
+            <dd id="studentName">Waiting for a card photo</dd>
+          </div>
+          <div class="field">
+            <dt>Student ID / USN</dt>
+            <dd id="studentId">Waiting for a card photo</dd>
+          </div>
+        </dl>
+        <p id="fieldNote" class="field-note">OCR suggestions can be wrong. Compare them with the card.</p>
+
+        <details class="raw-text-panel">
+          <summary>Show all recognized text</summary>
+          <pre id="rawText">No OCR text yet.</pre>
+        </details>
+      </section>
+
+      <footer class="privacy-note">The photo is processed in this browser and is not uploaded. The OCR engine downloads its code and English language data when first loaded.</footer>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
