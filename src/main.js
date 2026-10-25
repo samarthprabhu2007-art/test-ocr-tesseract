@@ -341,25 +341,25 @@ async function scanVideoFrames(scanId) {
       }
 
       // Crop the source frame to exactly the visible green guide. Account for
-      // object-fit: contain letterboxing before mapping screen coordinates to pixels.
+      // object-fit: cover cropping before mapping screen coordinates to pixels.
       const videoBounds = video.getBoundingClientRect();
       const guideBounds = elements.cameraGuideRegion.getBoundingClientRect();
-      const containScale = Math.min(
+      const coverScale = Math.max(
         videoBounds.width / video.videoWidth,
         videoBounds.height / video.videoHeight,
       );
-      const displayedWidth = video.videoWidth * containScale;
-      const displayedHeight = video.videoHeight * containScale;
+      const displayedWidth = video.videoWidth * coverScale;
+      const displayedHeight = video.videoHeight * coverScale;
       const displayedLeft = videoBounds.left + (videoBounds.width - displayedWidth) / 2;
       const displayedTop = videoBounds.top + (videoBounds.height - displayedHeight) / 2;
       const cropLeft = Math.max(guideBounds.left, displayedLeft);
       const cropTop = Math.max(guideBounds.top, displayedTop);
       const cropRight = Math.min(guideBounds.right, displayedLeft + displayedWidth);
       const cropBottom = Math.min(guideBounds.bottom, displayedTop + displayedHeight);
-      const sourceX = (cropLeft - displayedLeft) / containScale;
-      const sourceY = (cropTop - displayedTop) / containScale;
-      const sourceWidth = (cropRight - cropLeft) / containScale;
-      const sourceHeight = (cropBottom - cropTop) / containScale;
+      const sourceX = (cropLeft - displayedLeft) / coverScale;
+      const sourceY = (cropTop - displayedTop) / coverScale;
+      const sourceWidth = (cropRight - cropLeft) / coverScale;
+      const sourceHeight = (cropBottom - cropTop) / coverScale;
       if (sourceWidth <= 0 || sourceHeight <= 0) {
         await wait(50);
         continue;
