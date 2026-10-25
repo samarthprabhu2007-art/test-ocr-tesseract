@@ -7,6 +7,7 @@ const elements = {
   cameraPreview: document.querySelector("#cameraPreview"),
   cameraGuideRegion: document.querySelector(".camera-guide span"),
   cameraTools: document.querySelector("#cameraTools"),
+  resetZoom: document.querySelector("#resetZoomButton"),
   zoomRange: document.querySelector("#zoomRange"),
   zoomValue: document.querySelector("#zoomValue"),
   flashButton: document.querySelector("#flashButton"),
@@ -246,6 +247,7 @@ function stopCamera() {
   elements.cameraButton.textContent = "Start camera";
   elements.cameraTools.hidden = true;
   elements.cameraToolsHint.hidden = true;
+  elements.resetZoom.hidden = true;
   cameraTrack = null;
   torchEnabled = false;
   elements.flashButton.setAttribute("aria-pressed", "false");
@@ -274,6 +276,7 @@ function setupCameraTools(track) {
   const zoom = capabilities.zoom;
   const supportsZoom = zoom && Number.isFinite(zoom.min) && Number.isFinite(zoom.max) && zoom.max > zoom.min;
   elements.zoomRange.disabled = !supportsZoom;
+  elements.resetZoom.hidden = !supportsZoom;
   if (supportsZoom) {
     elements.zoomRange.min = String(zoom.min);
     elements.zoomRange.max = String(zoom.max);
@@ -298,14 +301,6 @@ function setupCameraTools(track) {
 elements.zoomRange.addEventListener("input", () => {
   elements.zoomValue.textContent = `${Number(elements.zoomRange.value).toFixed(1)}×`;
 });
-elements.zoomRange.addEventListener("change", async () => {
-  if (!cameraTrack || elements.zoomRange.disabled) return;
-  try {
-    await cameraTrack.applyConstraints({ advanced: [{ zoom: Number(elements.zoomRange.value) }] });
-  } catch {
-    elements.cameraToolsHint.textContent = "The camera could not apply this zoom level.";
-  }
-});
 function scheduleZoomApply() {
   if (!cameraTrack || pendingZoom === null || zoomApplyInProgress || zoomApplyTimer !== null) return;
   const delay = Math.max(0, 70 - (performance.now() - lastZoomApplyAt));
@@ -324,6 +319,10 @@ async function applyPendingZoom() {
   lastZoomApplyAt = performance.now();
   try {
     await activeTrack.applyConstraints({ advanced: [{ zoom: requestedZoom }] });
+    if (cameraTrack === activeTrack && pendingZoom === null) {
+      const isReset = requestedZoom === Number(elements.zoomRange.min);
+      elements.cameraToolsHint.textContent = isReset ? "Camera zoom reset to minimum." : "Camera zoom updated.";
+    }
   } catch {
     if (cameraTrack === activeTrack) {
       elements.cameraToolsHint.textContent = "The camera could not apply this zoom level.";
@@ -334,11 +333,24 @@ async function applyPendingZoom() {
   }
 }
 
+function resetCameraZoom() {
+  if (!cameraTrack || elements.zoomRange.disabled) return;
+  const minimumZoom = Number(elements.zoomRange.min);
+  clearTimeout(zoomApplyTimer);
+  zoomApplyTimer = null;
+  elements.zoomRange.value = String(minimumZoom);
+  elements.zoomValue.textContent = `${minimumZoom.toFixed(1)}×`;
+  elements.cameraToolsHint.textContent = "Resetting camera to minimum zoom…";
+  pendingZoom = minimumZoom;
+  scheduleZoomApply();
+}
+
 elements.zoomRange.addEventListener("input", () => {
   if (!cameraTrack || elements.zoomRange.disabled) return;
   pendingZoom = Number(elements.zoomRange.value);
   scheduleZoomApply();
 });
+elements.resetZoom.addEventListener("click", resetCameraZoom);
 
 elements.flashButton.addEventListener("click", async () => {
   if (!cameraTrack || elements.flashButton.disabled) return;
