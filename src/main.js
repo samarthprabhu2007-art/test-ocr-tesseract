@@ -39,6 +39,10 @@ let cameraStream = null;
 let liveScanId = 0;
 let cameraTrack = null;
 let torchEnabled = false;
+let pendingZoom = null;
+let zoomApplyTimer = null;
+let zoomApplyInProgress = false;
+let lastZoomApplyAt = 0;
 
 function setStatus(message, kind = "scanning") {
   elements.status.textContent = message;
@@ -243,6 +247,9 @@ async function processImage(file) {
 
 function stopCamera() {
   liveScanId += 1;
+  clearTimeout(zoomApplyTimer);
+  zoomApplyTimer = null;
+  pendingZoom = null;
   if (cameraStream) {
     for (const track of cameraStream.getTracks()) track.stop();
     cameraStream = null;
@@ -260,6 +267,9 @@ function stopCamera() {
 }
 
 function setupCameraTools(track) {
+  clearTimeout(zoomApplyTimer);
+  zoomApplyTimer = null;
+  pendingZoom = null;
   cameraTrack = track;
   torchEnabled = false;
   elements.cameraTools.hidden = false;
@@ -310,6 +320,40 @@ elements.zoomRange.addEventListener("change", async () => {
     elements.cameraToolsHint.textContent = "The camera could not apply this zoom level.";
   }
 });
+function scheduleZoomApply() {
+  if (!cameraTrack || pendingZoom === null || zoomApplyInProgress || zoomApplyTimer !== null) return;
+  const delay = Math.max(0, 70 - (performance.now() - lastZoomApplyAt));
+  zoomApplyTimer = setTimeout(() => {
+    zoomApplyTimer = null;
+    void applyPendingZoom();
+  }, delay);
+}
+
+async function applyPendingZoom() {
+  if (!cameraTrack || pendingZoom === null || zoomApplyInProgress) return;
+  const activeTrack = cameraTrack;
+  const requestedZoom = pendingZoom;
+  pendingZoom = null;
+  zoomApplyInProgress = true;
+  lastZoomApplyAt = performance.now();
+  try {
+    await activeTrack.applyConstraints({ advanced: [{ zoom: requestedZoom }] });
+  } catch {
+    if (cameraTrack === activeTrack) {
+      elements.cameraToolsHint.textContent = "The camera could not apply this zoom level.";
+    }
+  } finally {
+    zoomApplyInProgress = false;
+    if (pendingZoom !== null) scheduleZoomApply();
+  }
+}
+
+elements.zoomRange.addEventListener("input", () => {
+  if (!cameraTrack || elements.zoomRange.disabled) return;
+  pendingZoom = Number(elements.zoomRange.value);
+  scheduleZoomApply();
+});
+
 elements.flashButton.addEventListener("click", async () => {
   if (!cameraTrack || elements.flashButton.disabled) return;
   const nextTorchState = !torchEnabled;
